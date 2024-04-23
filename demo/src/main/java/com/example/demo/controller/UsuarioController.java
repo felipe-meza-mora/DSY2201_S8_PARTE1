@@ -2,8 +2,12 @@ package com.example.demo.controller;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,27 +43,42 @@ public class UsuarioController {
     private UsuarioRepository usuarioRepository;
 
     @GetMapping
-    public List<Usuario> getAllUsuarios(){
+    public CollectionModel<EntityModel<Usuario>>getAllUsuarios(){
+        List<Usuario> usuarios= usuarioService.getAllUsuarios();
+
+        List<EntityModel<Usuario>> usuariosResources = usuarios.stream()
+            .map( usuario->{
+                Integer id = usuario.getId();
+                    return EntityModel.of(usuario, WebMvcLinkBuilder.linkTo(WebMvcLinkBuilder.methodOn(this.getClass()).
+                    getUsuarioById(id)).withSelfRel()
+                );
+            })
+        .collect(Collectors.toList());
+        WebMvcLinkBuilder linkTo = WebMvcLinkBuilder.linkTo(WebMvcLinkBuilder.methodOn(this.getClass()).getAllUsuarios());
+        CollectionModel<EntityModel<Usuario>> resources = CollectionModel.of(usuariosResources, linkTo.withRel("usuarios"));
+        
         log.info("GET /usuarios");
         log.info("Retornado todos los usuarios");
-        return usuarioService.getAllUsuarios();
+        return resources;
+        
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Object> getUsuarioById(@PathVariable("id") Integer id) {
-        Optional<Usuario> usuario = usuarioService.getUsuarioById(id);
-
-        if(usuario.isEmpty()){
-            log.error("No se encontro el usuario con ID: {}",id);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("No se encontró el Usuario con el ID: " + id));
-        }
-        log.info("Usuario encontrado con exito");
-        return ResponseEntity.ok(usuarioService.getUsuarioById(id));
+    public EntityModel<Usuario> getUsuarioById(@PathVariable("id") Integer id){
+       Optional<Usuario> usuario = usuarioService.getUsuarioById(id);
+       if(usuario.isPresent()){
+            return EntityModel.of(usuario.get(),
+            WebMvcLinkBuilder.linkTo(WebMvcLinkBuilder.methodOn(this.getClass()).getAllPedidoByUsuarioId(id)).withSelfRel(),
+            WebMvcLinkBuilder.linkTo(WebMvcLinkBuilder.methodOn(this.getClass()).getAllUsuarios()).withRel("usuarios")
+            );
+       } else {
+         throw new UsuarioNotFoundException("Este ID, no existe en nuestros registros.");
+       } 
     }
 
      //CONTROLADORES NUEVO CRUD
 
-     @PostMapping
+     @PostMapping 
      public ResponseEntity<Object> createUsuario(@RequestBody Usuario usuario){
         Usuario createUsuario = usuarioService.createUsuario(usuario);
         if(createUsuario == null){
@@ -104,19 +123,27 @@ public class UsuarioController {
      }
 
      @GetMapping("/{idUsuario}/pedidos")
-     public ResponseEntity<Object> getAllPedidoByUsuarioId(@PathVariable("idUsuario") Integer idUsuario) {
-         List<Pedido> pedidos = usuarioService.getAllPedidoByUsuarioId(idUsuario);
- 
-         if (pedidos != null) {
-             if (!pedidos.isEmpty()) {
-                 return ResponseEntity.ok(pedidos);
-             } else {
-                 return ResponseEntity.status(HttpStatus.NO_CONTENT).body("El usuario no tiene pedidos asociados.");
-             }
-         } else {
-             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Usuario no encontrado.");
-         }
-     }
+    public CollectionModel<EntityModel<Pedido>> getAllPedidoByUsuarioId(@PathVariable("idUsuario") Integer idUsuario) {
+        List<Pedido> pedidos = usuarioService.getAllPedidoByUsuarioId(idUsuario);
+
+        List<EntityModel<Pedido>> pedidosResources = pedidos.stream()
+                .map(pedido -> EntityModel.of(pedido,
+                        WebMvcLinkBuilder.linkTo(WebMvcLinkBuilder.methodOn(this.getClass())
+                                .getAllPedidoByUsuarioId(idUsuario)).withSelfRel(),
+                        WebMvcLinkBuilder.linkTo(WebMvcLinkBuilder.methodOn(this.getClass())
+                                .getAllUsuarios()).withRel("usuarios")))
+                .collect(Collectors.toList());
+
+        WebMvcLinkBuilder linkTo = WebMvcLinkBuilder.linkTo(WebMvcLinkBuilder.methodOn(this.getClass())
+                .getAllPedidoByUsuarioId(idUsuario));
+
+        CollectionModel<EntityModel<Pedido>> resources = CollectionModel.of(pedidosResources,
+                linkTo.withRel("pedidos"));
+
+        log.info("GET /usuarios/{}/pedidos", idUsuario);
+        log.info("Retornados todos los pedidos del usuario con ID: {}", idUsuario);
+        return resources;
+    }
 
     @PostMapping("/{idUsuario}/pedidos")
     public ResponseEntity<Object> createPedido(@PathVariable("idUsuario") Integer idUsuario, @RequestBody Pedido pedido) {
