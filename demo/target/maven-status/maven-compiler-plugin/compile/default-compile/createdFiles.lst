@@ -1,6 +1,7 @@
 com\example\demo\DemoApplication.class
 com\example\demo\model\Usuario.class
 com\example\demo\repository\UsuarioRepository.class
+com\example\demo\controller\UsuarioNotFoundException.class
 com\example\demo\repository\PedidoRepository.class
 com\example\demo\model\Pedido.class
 com\example\demo\service\UsuarioServiceImpl.class
